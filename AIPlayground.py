@@ -5,6 +5,7 @@
 print("This will be a place for me to play with programming using AI Technology\n")
 
 import random
+import time
 from collections import defaultdict
 
 # Sample character database (name, type, price, group)
@@ -110,7 +111,7 @@ character_database = [
     {"name": "Mad Mechanic", "type": "Ranged", "price": 500, "group": "Evil"},
     {"name": "Void Cyltist", "type": "Ranged", "price": 800, "group": "Evil"},
     {"name": "Tempest Lich", "type": "Ranged", "price": 1000, "group": "Evil"},
-    {"name": "Death Bring", "type": "Melee", "price": 2000, "group": "Evil"},
+    {"name": "Death Bringer", "type": "Melee", "price": 2000, "group": "Evil"},
     {"name": "Void Monarch", "type": "Melee", "price": 3000, "group": "Evil"},
     {"name": "Ballooner", "type": "Ranged", "price": 120, "group": "Secret"},
     {"name": "Bomb On A Stick", "type": "Melee", "price": 150, "group": "Secret"},
@@ -130,7 +131,7 @@ character_database = [
     {"name": "CLAMS", "type": "Ranged", "price": 500, "group": "Secret"},
     {"name": "Present Elf", "type": "Ranged", "price": 500, "group": "Secret"},
     {"name": "Ice Mage", "type": "Ranged", "price": 650, "group": "Secret"},
-    {"name": "Infernal Whi", "type": "Ranged", "price": 800, "group": "Secret"},
+    {"name": "Infernal Whip", "type": "Ranged", "price": 800, "group": "Secret"},
     {"name": "Bank Robbers", "type": "Ranged", "price": 850, "group": "Secret"},
     {"name": "Witch", "type": "Ranged", "price": 1000, "group": "Secret"},
     {"name": "Banshee", "type": "Ranged", "price": 1100, "group": "Secret"},
@@ -154,9 +155,10 @@ character_database = [
 ]
 
 
-def generate_random_army(max_price, num_unique_units, group=None):
-    if group:
-        available_characters = [char for char in character_database if char["group"] in group]
+def generate_random_army(max_price, max_unique_units, max_units_per_type=None, group=None):
+    group_input = group
+    if group_input:
+        available_characters = [char for char in character_database if char["group"] in group_input]
     else:
         available_characters = character_database
 
@@ -167,24 +169,35 @@ def generate_random_army(max_price, num_unique_units, group=None):
     army = []
     remaining_price = max_price
     unique_units_generated = set()
+    unique_types_added = 0
 
-    while len(unique_units_generated) < num_unique_units:
-        unit = random.choice(available_characters)
-        if unit["price"] <= remaining_price:
-            army.append(unit)
-            remaining_price -= unit["price"]
-            unique_units_generated.add(unit["name"])  # Add the unit's name to the set
-        else:
+    random.shuffle(available_characters)  # Shuffle the list of available characters
+
+    for char in available_characters:
+        if remaining_price <= 0 or unique_types_added >= max_unique_units:
             break
 
-    # Add more instances of already selected units to reach the specified limit
+        if char["name"] not in unique_units_generated and char["price"] <= remaining_price:
+            max_units = remaining_price // char["price"]
+            if max_units_per_type is not None:
+                max_units = min(max_units, max_units_per_type)
+            if max_units == 0:
+                continue
+            num_units = random.randint(1, max_units)  # Randomly select the quantity of units
+            army.extend([char] * num_units)
+            remaining_price -= char["price"] * num_units
+            unique_units_generated.add(char["name"])
+            unique_types_added += 1
+
+    # Add halflings and peasants if necessary
     while remaining_price > 0:
-        unit = random.choice(army)
-        if unit["price"] <= remaining_price:
-            army.append(unit)
-            remaining_price -= unit["price"]
-        else:
+        fill_in_units = [char for char in available_characters if
+                         char["price"] <= remaining_price and char["name"] in ("Halfling", "Peasant")]
+        if not fill_in_units:
             break
+        selected_unit = random.choice(fill_in_units)
+        army.append(selected_unit)
+        remaining_price -= selected_unit["price"]
 
     return army
 
@@ -199,45 +212,56 @@ def count_characters(army):
 def main():
     max_price = int(input("Enter the maximum price for the army: "))
     num_unique_units = int(input("Enter the number of unique units for the army: "))
+    max_units_per_type_input = input("Enter the maximum number of units for each type (press Enter for default): ")
+    max_units_per_type = int(max_units_per_type_input) if max_units_per_type_input else None
     print(
-        "\ngroups = Ancient, Dynasty, Evil, Farmer, Good, Legacy, Medieval, Pirate, Renaissance, Secret, Spooky, Tribal, Viking, and Wild West\n")
+        "Groups available: Ancient, Dynasty, Evil, Farmer, Good, Legacy, Medieval, Pirate, Renaissance, Secret, Spooky, Tribal, Viking, and Wild West\n")
     groups = []
     while True:
-        group_input = input("\nEnter a faction to randomize from (or press Enter to finish): ").strip().capitalize()
+        group_input = input("Enter a faction to randomize from (or press Enter to finish): ").strip().capitalize()
         if not group_input:
             break
         groups.append(group_input)
 
-    if not groups:  # If no groups were provided, use None to select from all groups
+    if not groups:
         group = None
     else:
-        group = groups
+        group = [group.capitalize() for group in groups]
 
-    army = generate_random_army(max_price, num_unique_units, group)
+    print("Generating army...", end="", flush=True)
+    start_time = time.time()
 
-    print("\nRandomly Generated Army:")
+    army = generate_random_army(max_price, num_unique_units, max_units_per_type, group)
+
+    end_time = time.time()
+    print("\n")
+    print(f"Time taken: {end_time - start_time:.4f} seconds\n")
+
+    print("Randomly Generated Army:")
     total_price = sum(unit["price"] for unit in army)
     left_over = max_price - total_price
     print(f"Money Spent: {total_price}")
     print(f"Money Left over: {left_over}")
     character_count = count_characters(army)
 
-    # Group characters by name and collect their groups
     characters_with_group = defaultdict(set)
     for unit in army:
         characters_with_group[unit['name']].add(unit['group'])
 
-    # Sort characters alphabetically by name
     sorted_characters = sorted(characters_with_group.items(), key=lambda x: x[0])
 
     print("Units:")
+    total_cost = 0  # Initialize the total cost variable
     for name, groups in sorted_characters:
         group_str = ", ".join(groups)
         count = character_count[name]
-        print(f"{name} ({group_str}): {count}")
+        unit_price = [unit["price"] for unit in army if unit["name"] == name][0]
+        total_cost += unit_price * count  # Update total cost
+        print(f"{name} ({group_str}): {count} - Cost: {unit_price * count}")
+
+    print("\nTotal Cost of Units:", total_cost)  # Print the total cost
 
 
 if __name__ == "__main__":
     main()
-
-    # print("\ngroups = Ancient, Dynasty, Evil, Farmer, Good, Legacy, Medieval, Pirate, Renaissance, Secret, Spooky, Tribal, Viking, and Wild West\n")
+    #print("\ngroups = Ancient, Dynasty, Evil, Farmer, Good, Legacy, Medieval, Pirate, Renaissance, Secret, Spooky, Tribal, Viking, and Wild West\n")
